@@ -5,6 +5,7 @@ import Options.Applicative
 import Text.Read
 import Data.Maybe
 import System.IO
+import Control.Monad
 
 data Intype = I|S -- Int|String
   deriving Eq
@@ -19,29 +20,15 @@ data Args = Args
 args :: Parser Args
 args = Args
   <$> (flag ASC DESC (short 'd') <|> flag' ASC (short 'a'))
-  <*> (flag' I (short 'i') <|> flag' S (short 's'))
+  <*> (flag' I ( short 'i') <|> flag' S (short 's'))
   <*> some (strArgument (metavar "FILE(S)"))
 
-mergesort :: Ord a => [a] -> [a]
-mergesort []   = []
-mergesort [a]  = [a]
-mergesort list = merge (mergesort left) (mergesort right)
-  where
-    (left, right) = split list [] []
-      where
-        split [] l r = (l,r)
-        split (x:xs) l r = split xs (x:r) l
-    merge l [] = l
-    merge [] r = r
-    merge l@(x:xs) r@(y:ys) = if x <= y
-                                then x : merge xs r
-                                else y : merge l ys
 main :: IO ()
 main = handle =<< execParser opts
   where
     opts = info (args <**> helper)
       ( fullDesc
-     <> progDesc "Sorts the input files"
+     <> progDesc "Merge and mergesorts the input files"
      <> header "CFT" )
 
 handle :: Args -> IO ()
@@ -56,4 +43,10 @@ handle (Args o i (out:inputs)) =
         let func list = if i == I
                            then map show $ catMaybes $ mergesort (fmap readMaybe list :: [Maybe Int])
                            else mergesort list
-        writeFile out $ unlines $ func (lines content)
+        let ans = if o == ASC
+                     then func (lines content)
+                     else reverse $ func (lines content)
+        when 
+          (length ans /= length (lines content) && i == I)
+          (hPutStrLn stderr "WARN: some strings haven't been parsed as as integers")
+        writeFile out $ unlines ans
